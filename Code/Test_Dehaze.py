@@ -4,7 +4,6 @@ from os.path import dirname, abspath
 import matplotlib.pyplot as plt
 import tensorflow as tf
 from PIL import Image
-from skimage.measure import compare_ssim as ssim
 import numpy as np
 import math
 import cv2
@@ -63,9 +62,7 @@ def get_PSNR_SSIM(orig_im, J):
     orig_im = orig_im.astype(np.float64)
     MSE = np.sqrt(np.mean(np.power(orig_im - J, 2)))
     PSNR = 20 * math.log10(1.0 / MSE)
-    SSIM = ssim(orig_im, J, multichannel=True, gaussian_weights=True, sigma=1.5,
-                use_sample_covariance=False)
-    return PSNR, SSIM
+    return PSNR
 
 
 def our_dehaze(I, src, file_name):
@@ -82,6 +79,7 @@ def main():
     for i in range(len(image_list)):
         file_name = image_list[i]
         image = np.array(Image.open(image_folder + '/' + file_name))
+
         print('image (%d/%d)' % (i + 1, len(image_list)))
         im_for_tf = np.expand_dims(image / 255.0, axis=0)
         t_network = np.squeeze(sess.run([net_class.network_out], feed_dict={in_placeholder: im_for_tf, phase: False}))
@@ -89,44 +87,18 @@ def main():
         J_network = (J_network - np.min(J_network)) / (np.max(J_network) - np.min(J_network))
         Image.fromarray(prep_save(J_network)).save(output_folder + "/" + file_name)
 
-        src = cv2.imread(output_folder + "/" + file_name)
-        I = src.astype('float') / 255
-        our_dehaze(I, src, file_name)
-        our_dehazed_image = np.array(Image.open(f'{our_output_folder + "/" + file_name}')) / 255.0
-
-        orig_image = np.array(Image.open(orig_image_folder + '/' + file_name)) / 255
-        J_PSNR = 20 * math.log10(1.0 / np.sqrt(np.mean(np.power(orig_image - J_network, 2))))
-        our_J_PSNR = 20 * math.log10(1.0 / np.sqrt(np.mean(np.power(orig_image - our_dehazed_image, 2))))
-
-        # print(f' J_PSNR = {J_PSNR}', end='\t')
-        # print(f' our_J_PSNR = {our_J_PSNR}')
-
         title_file = file_name.split(".")[0]
         plt.figure(figsize=(12, 5))
 
-        plt.subplot(1, 4, 1)
-        plt.axis("off")
-        pil_img = Image.open(f'{orig_image_folder + "/" + file_name}', 'r')
-        plt.imshow(pil_img)
-        plt.title(f"Original {title_file}")
-
-        plt.subplot(1, 4, 2)
+        plt.subplot(1, 2, 1)
         plt.axis("off")
         pil_img = Image.open(f'{image_folder + "/" + file_name}', 'r')
         plt.imshow(pil_img)
         plt.title(f"Hazy {title_file}")
 
-        plt.subplot(1, 4, 3)
+        plt.subplot(1, 2, 2)
         plt.axis("off")
-        pil_img = Image.open(f'{output_folder + "/" + file_name}', 'r')
-        plt.imshow(pil_img)
-        plt.title(f"Paper Dehazed {title_file}" + "\nPSNR = " + str(J_PSNR))
-
-        plt.subplot(1, 4, 4)
-        plt.axis("off")
-        pil_img = Image.open(f'{our_output_folder + "/" + file_name}', 'r')
-        plt.imshow(pil_img)
-        plt.title(f"Our Dehazed {title_file}" + "\nPSNR = " + str(our_J_PSNR))
+        plt.imshow(J_network)
 
         plt.show()
     sess.close()
